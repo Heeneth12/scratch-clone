@@ -2,15 +2,25 @@ import React from "react";
 import Sidebar from "./components/Sidebar";
 import MidArea from "./components/MidArea";
 import PreviewArea from "./components/PreviewArea";
+import NavBar from "./components/NavBar";
 
 export default function App() {
   return (
-    <div className="bg-blue-100 pt-6 font-sans">
-      <div className="h-screen overflow-hidden flex flex-row  ">
-        <div className="flex-1 h-screen overflow-hidden flex flex-row bg-white border-t border-r border-gray-200 rounded-tr-xl mr-2">
-          <Sidebar /> <MidArea />
+    <div className="font-sans min-h-screen flex flex-col">
+      <NavBar />
+      <div className="flex-1 grid grid-cols-12  overflow-hidden">
+        {/* Left Sidebar */}
+        <div className="col-span-3 border border-gray-300 overflow-auto">
+          <Sidebar />
         </div>
-        <div className="w-1/3 h-screen overflow-hidden flex flex-row bg-white border-t border-l border-gray-200 rounded-tl-xl ml-2">
+
+        {/* Middle Area */}
+        <div className="col-span-3 border border-gray-300 overflow-auto">
+          <MidArea />
+        </div>
+
+        {/* Preview Area */}
+        <div className="col-span-6  border border-gray-300 overflow-auto">
           <PreviewArea />
         </div>
       </div>
