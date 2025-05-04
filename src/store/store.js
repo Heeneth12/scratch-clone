@@ -1,4 +1,3 @@
-// store.js
 import { configureStore } from '@reduxjs/toolkit';
 import spritesReducer from './slices/spritesSlice';
 import uiReducer from './slices/uiSlice';
