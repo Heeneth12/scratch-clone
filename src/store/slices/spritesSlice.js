@@ -17,6 +17,7 @@ const initialState = {
       blocks: [],
     },
   ],
+  collisionCooldown: false,
 };
 
 export const spritesSlice = createSlice({
@@ -47,10 +48,10 @@ export const spritesSlice = createSlice({
       }
     },
     addBlockToSprite: (state, action) => {
-      const { spriteId, blockData } = action.payload;
+      const { spriteId, blockdata } = action.payload;
       const sprite = state.items.find((sprite) => sprite.id === spriteId);
       if (sprite) {
-        sprite.blocks.push({ ...blockData, id: Date.now() });
+        sprite.blocks.push({ ...blockdata, id: Date.now() });
       }
     },
     updateBlockInSprite: (state, action) => {
@@ -75,7 +76,16 @@ export const spritesSlice = createSlice({
         sprite.blocks = sprite.blocks.filter((block) => block.id !== blockId);
       }
     },
+    setCooldown: (state, action) => {
+      state.collisionCooldown = action.payload;
+    },
     checkCollisionsAndSwap: (state) => {
+      // Don't process if on cooldown
+      if (state.collisionCooldown) {
+        return;
+      }
+      
+      // Check for collisions
       for (let i = 0; i < state.items.length; i++) {
         for (let j = i + 1; j < state.items.length; j++) {
           const sprite1 = state.items[i];
@@ -86,10 +96,23 @@ export const spritesSlice = createSlice({
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < 100) {
-            // Swap the animation blocks between the two sprites
-            const temp = [...sprite1.blocks];
-            sprite1.blocks = [...sprite2.blocks];
-            sprite2.blocks = [...temp];
+            // Create deep copies of blocks with new IDs to avoid conflicts
+            const sprite1Blocks = sprite1.blocks.map(block => ({
+              ...block,
+              id: `${block.id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            }));
+            
+            const sprite2Blocks = sprite2.blocks.map(block => ({
+              ...block,
+              id: `${block.id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            }));
+
+            sprite1.blocks = sprite2Blocks;
+            sprite2.blocks = sprite1Blocks;
+            
+            state.collisionCooldown = true;
+            
+            return;
           }
         }
       }
@@ -105,6 +128,7 @@ export const {
   updateBlockInSprite,
   removeBlockFromSprite,
   checkCollisionsAndSwap,
+  setCooldown,
 } = spritesSlice.actions;
 
 export default spritesSlice.reducer;
