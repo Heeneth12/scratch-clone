@@ -1,6 +1,7 @@
 import React from "react";
 
 export default function Sprite({ spriteName }) {
+  console.log(spriteName)
   return (
     <>
       {spriteName === "cat" && (
@@ -184,9 +185,12 @@ export default function Sprite({ spriteName }) {
       )}
 
       {spriteName === "ball" && (
-        <svg
+        <svg 
+
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 100 100"
+           width="95.17898101806641"
+          height="100.04156036376953"
           version="1.1">
           <g id="basketball">
             {/* Basketball body */}

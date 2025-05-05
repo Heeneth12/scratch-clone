@@ -4,14 +4,14 @@ const initialState = {
   items: [
     {
       id: 1,
-      name: "Sprite 1",
+      name: "cat",
       x: 50,
       y: 50,
       blocks: [],
     },
     {
       id: 2,
-      name: "Sprite 2",
+      name: "ball",
       x: 150,
       y: 150,
       blocks: [],
