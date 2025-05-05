@@ -5,10 +5,11 @@ module.exports = {
   entry: {
     app: "./src/index.js",
   },
-  output: {
-    // filename: "app.js",
-    path: path.resolve(__dirname, "public"),
-  },
+ output: {
+  path: path.resolve(__dirname, "build"),
+  filename: "[name].[contenthash].js",
+  publicPath: "/",
+},
   module: {
     rules: [
       {
