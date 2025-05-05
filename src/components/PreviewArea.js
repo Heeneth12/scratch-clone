@@ -502,7 +502,6 @@ export default function PreviewArea() {
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-semibold text-gray-700">Sprites</h3>
           <button
-            disabled={true}
             className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
             onClick={() => dispatch(addSprite())}>
             + Add Sprite
