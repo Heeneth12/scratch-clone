@@ -135,17 +135,17 @@ export default function Sidebar() {
                 onClick={() => handleAddBlock({
                   type: "motion",
                   action: "move",
-                  steps: 25,
-                  display: "Move 25 steps"
+                  steps: 50,
+                  display: "Move 50 steps"
                 })}
               >
                 <div className="flex items-center" blockdata={{
                   type: "motion",
                   action: "move",
-                  steps: 25,
-                  display: "Move 25 steps"
+                  steps: 50,
+                  display: "Move 50 steps"
                 }}>
-                  <span>Move 25 steps</span>
+                  <span>Move 50 steps</span>
                 </div>
               </Block>
 

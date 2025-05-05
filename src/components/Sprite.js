@@ -1,7 +1,6 @@
 import React from "react";
 
 export default function Sprite({ spriteName }) {
-  console.log(spriteName)
   return (
     <>
       {(spriteName === "cat" || (spriteName !== "cat" && spriteName !== "ball")) && (

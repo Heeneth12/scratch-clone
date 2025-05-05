@@ -5,83 +5,98 @@ import {
   checkCollisionsAndSwap,
   addSprite,
   deleteSprite,
-  setCooldown
+  setCooldown,
 } from "../store/slices/spritesSlice";
 import { setSelectedSpriteId } from "../store/slices/uiSlice";
 import CatSprite from "./Sprite";
 
 export default function PreviewArea() {
   const dispatch = useDispatch();
-  
+  const lastPositionRef = useRef({});
+
   // Get state from Redux store
-  const sprites = useSelector(state => state.sprites.items);
-  const selectedSpriteId = useSelector(state => state.ui.selectedSpriteId);
-  const isPlaying = useSelector(state => state.ui.isPlaying);
-  const collisionCooldown = useSelector(state => state.sprites.collisionCooldown);
+  const sprites = useSelector((state) => state.sprites.items);
+  const selectedSpriteId = useSelector((state) => state.ui.selectedSpriteId);
+  const isPlaying = useSelector((state) => state.ui.isPlaying);
+  const collisionCooldown = useSelector(
+    (state) => state.sprites.collisionCooldown
+  );
 
-  // Animation frame reference
-  const animationFrameRef = useRef(null);
-  
-  // Refs for drag functionality
-  const isDragging = useRef(false);
-  const offset = useRef({ x: 0, y: 0 });
-
-  // State for speech and thought bubbles
+  const animationFrameRef = useRef({});
+  const [activeDragSprites, setActiveDragSprites] = useState({});
+  const dragOffsets = useRef({});
   const [bubbles, setBubbles] = useState({});
-  
-  // Track sprite rotations
   const [rotations, setRotations] = useState({});
-  
-  // Track ongoing animations to prevent conflicts
+
   const activeAnimations = useRef({});
 
-  // Handle mouse down on sprite
   const handleMouseDown = (e, spriteId) => {
-    if (isPlaying) return; // Prevent dragging during animation
-    
-    isDragging.current = true;
-    dispatch(setSelectedSpriteId(spriteId));
+    if (isPlaying) return;
 
-    // Find the current sprite position
+    e.stopPropagation(); // Prevent event bubbling
+
+    dispatch(setSelectedSpriteId(spriteId));
     const sprite = sprites.find((s) => s.id === spriteId);
     if (!sprite) return;
-    
-    offset.current = {
+    dragOffsets.current[spriteId] = {
       x: e.clientX - sprite.x,
       y: e.clientY - sprite.y,
     };
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging.current || isPlaying) return;
-
-    // Update position of only the selected sprite
-    const newX = e.clientX - offset.current.x;
-    const newY = e.clientY - offset.current.y;
-    
-    dispatch(updateSpritePosition({
-      id: selectedSpriteId,
-      x: newX,
-      y: newY
+    setActiveDragSprites((prev) => ({
+      ...prev,
+      [spriteId]: true,
     }));
   };
 
+  const handleMouseMove = (e) => {
+    if (isPlaying || Object.keys(activeDragSprites).length === 0) return;
+
+    // Update position for each active dragged sprite
+    Object.keys(activeDragSprites).forEach((spriteId) => {
+      if (activeDragSprites[spriteId] && dragOffsets.current[spriteId]) {
+        const offset = dragOffsets.current[spriteId];
+        const newX = e.clientX - offset.x;
+        const newY = e.clientY - offset.y;
+
+        if (
+          lastPositionRef.current[spriteId] &&
+          (Math.abs(lastPositionRef.current[spriteId].x - newX) > 1 ||
+            Math.abs(lastPositionRef.current[spriteId].y - newY) > 1)
+        ) {
+          dispatch(
+            updateSpritePosition({
+              id: parseInt(spriteId),
+              x: newX,
+              y: newY,
+            })
+          );
+        }
+
+        // Update last position after dispatch
+        lastPositionRef.current[spriteId] = { x: newX, y: newY };
+      }
+    });
+  };
+
   const handleMouseUp = () => {
-    isDragging.current = false;
+    // Clear all active drags
+    setActiveDragSprites({});
   };
 
   // Process block animations for a specific sprite
   const processBlocks = (sprite, blocks, blockIndex = 0, repeatStack = {}) => {
     // Return immediately if no blocks exist or index is out of bounds
     if (!blocks || blockIndex >= blocks.length) return Promise.resolve();
-    
+
     const block = blocks[blockIndex];
-    
+
     // Skip if this block doesn't exist
     if (!block) return Promise.resolve();
 
-    // Create an animation ID for this particular execution
-    const animationId = `${sprite.id}_${block.id}_${Date.now()}`;
+    // Create an animation ID for this particular execution - ensure uniqueness with sprite ID
+    const animationId = `${sprite.id}_${block.id}_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 5)}`;
     activeAnimations.current[animationId] = true;
 
     // Process block based on type
@@ -95,7 +110,7 @@ export default function PreviewArea() {
           }
           return Promise.resolve();
         });
-      
+
       case "looks":
         return processLooksBlock(sprite, block, animationId).then(() => {
           // Only continue if this animation hasn't been cancelled
@@ -105,18 +120,23 @@ export default function PreviewArea() {
           }
           return Promise.resolve();
         });
-      
+
       case "control":
-        return processControlBlock(sprite, block, blocks, blockIndex, repeatStack, animationId);
-      
+        return processControlBlock(
+          sprite,
+          block,
+          blocks,
+          blockIndex,
+          repeatStack,
+          animationId
+        );
+
       default:
-        // For blocks like events, just move to the next one
         delete activeAnimations.current[animationId];
         return processBlocks(sprite, blocks, blockIndex + 1, repeatStack);
     }
   };
 
-  // Process motion blocks
   const processMotionBlock = (sprite, block, animationId) => {
     return new Promise((resolve) => {
       // If this animation has been cancelled, don't proceed
@@ -131,60 +151,59 @@ export default function PreviewArea() {
           const spriteRotation = rotations[sprite.id] || 0;
           const radians = spriteRotation * (Math.PI / 180);
           const steps = block.steps || 0;
-          
+
           // Calculate exact target position
           const targetX = sprite.x + steps * Math.cos(radians);
           const targetY = sprite.y + steps * Math.sin(radians);
-          
+
           // Animate the movement with exact target position
           animatePosition(sprite, targetX, targetY, resolve, animationId);
           break;
-        
+
         case "turnLeft":
           const currentRotationLeft = rotations[sprite.id] || 0;
           const newRotationLeft = currentRotationLeft - (block.degrees || 0);
-          
-          setRotations(prev => ({
+
+          setRotations((prev) => ({
             ...prev,
-            [sprite.id]: newRotationLeft
+            [sprite.id]: newRotationLeft,
           }));
-          
+
           setTimeout(() => {
             if (activeAnimations.current[animationId]) {
               resolve();
             }
           }, 300);
           break;
-        
+
         case "turnRight":
           const currentRotationRight = rotations[sprite.id] || 0;
           const newRotationRight = currentRotationRight + (block.degrees || 0);
-          
-          setRotations(prev => ({
+
+          setRotations((prev) => ({
             ...prev,
-            [sprite.id]: newRotationRight
+            [sprite.id]: newRotationRight,
           }));
-          
+
           setTimeout(() => {
             if (activeAnimations.current[animationId]) {
               resolve();
             }
           }, 300);
           break;
-        
+
         case "goToXY":
           const x = block.x || 0;
           const y = block.y || 0;
           animatePosition(sprite, x, y, resolve, animationId);
           break;
-        
+
         default:
           resolve();
       }
     });
   };
 
-  // Process looks blocks
   const processLooksBlock = (sprite, block, animationId) => {
     return new Promise((resolve) => {
       // If this animation has been cancelled, don't proceed
@@ -195,25 +214,25 @@ export default function PreviewArea() {
 
       switch (block.action) {
         case "say":
-          // Show speech bubble
-          setBubbles(prev => ({
+          setBubbles((prev) => ({
             ...prev,
             [sprite.id]: {
-              type: 'speech',
-              content: block.message || ""
-            }
+              type: "speech",
+              content: block.message || "",
+            },
           }));
-          
-          // Clear bubble after duration
+
           const sayDuration = Math.max(0.5, block.duration || 2); // Minimum 0.5 seconds
           setTimeout(() => {
             if (activeAnimations.current[animationId]) {
-              setBubbles(prev => {
+              setBubbles((prev) => {
                 // Only clear if it's still the same message
-                if (prev[sprite.id]?.type === 'speech' && 
-                    prev[sprite.id]?.content === block.message) {
-                  const newBubbles = {...prev};
-                  newBubbles[sprite.id] = null;
+                if (
+                  prev[sprite.id]?.type === "speech" &&
+                  prev[sprite.id]?.content === block.message
+                ) {
+                  const newBubbles = { ...prev };
+                  delete newBubbles[sprite.id];
                   return newBubbles;
                 }
                 return prev;
@@ -222,27 +241,27 @@ export default function PreviewArea() {
             }
           }, sayDuration * 1000);
           break;
-        
+
         case "think":
-          // Show thought bubble
-          setBubbles(prev => ({
+          setBubbles((prev) => ({
             ...prev,
             [sprite.id]: {
-              type: 'thought',
-              content: block.message || ""
-            }
+              type: "thought",
+              content: block.message || "",
+            },
           }));
-          
+
           // Clear bubble after duration
-          const thinkDuration = Math.max(0.5, block.duration || 2); // Minimum 0.5 seconds
+          const thinkDuration = Math.max(0.5, block.duration || 2);
           setTimeout(() => {
             if (activeAnimations.current[animationId]) {
-              setBubbles(prev => {
-                // Only clear if it's still the same message
-                if (prev[sprite.id]?.type === 'thought' && 
-                    prev[sprite.id]?.content === block.message) {
-                  const newBubbles = {...prev};
-                  newBubbles[sprite.id] = null;
+              setBubbles((prev) => {
+                if (
+                  prev[sprite.id]?.type === "thought" &&
+                  prev[sprite.id]?.content === block.message
+                ) {
+                  const newBubbles = { ...prev };
+                  delete newBubbles[sprite.id];
                   return newBubbles;
                 }
                 return prev;
@@ -251,7 +270,7 @@ export default function PreviewArea() {
             }
           }, thinkDuration * 1000);
           break;
-        
+
         default:
           resolve();
       }
@@ -259,7 +278,14 @@ export default function PreviewArea() {
   };
 
   // Process control blocks
-  const processControlBlock = (sprite, block, blocks, blockIndex, repeatStack, animationId) => {
+  const processControlBlock = (
+    sprite,
+    block,
+    blocks,
+    blockIndex,
+    repeatStack,
+    animationId
+  ) => {
     // If this animation has been cancelled, don't proceed
     if (!activeAnimations.current[animationId]) {
       return Promise.resolve();
@@ -267,49 +293,60 @@ export default function PreviewArea() {
 
     switch (block.action) {
       case "repeat":
-        // Initialize repeat counter for this block if not exists
         const repeatId = `${block.id}_${blockIndex}`;
         if (!repeatStack[repeatId]) {
           repeatStack[repeatId] = 0;
         }
-        
-        // Increment counter
+
         repeatStack[repeatId]++;
-        
-        const times = block.times || 1; // Default to 1 if undefined
-        
+
+        const times = block.times || 1;
+
         if (repeatStack[repeatId] <= times) {
-          // If we haven't repeated enough times, process nested blocks then this block again
           const childrenBlocks = block.children || [];
-          
-          return processBlocks(sprite, childrenBlocks, 0, repeatStack).then(() => {
-            if (activeAnimations.current[animationId]) {
-              return processBlocks(sprite, blocks, blockIndex, repeatStack);
+
+          return processBlocks(sprite, childrenBlocks, 0, repeatStack).then(
+            () => {
+              if (activeAnimations.current[animationId]) {
+                return processBlocks(sprite, blocks, blockIndex, repeatStack);
+              }
+              return Promise.resolve();
             }
-            return Promise.resolve();
-          });
+          );
         } else {
           // Reset counter and move to next block
           delete repeatStack[repeatId];
           delete activeAnimations.current[animationId];
           return processBlocks(sprite, blocks, blockIndex + 1, repeatStack);
         }
-      
+
       default:
         delete activeAnimations.current[animationId];
         return processBlocks(sprite, blocks, blockIndex + 1, repeatStack);
     }
   };
 
-  // Animate sprite position changes
-  const animatePosition = (sprite, targetX, targetY, onComplete, animationId) => {
-    const startX = sprite.x;
-    const startY = sprite.y;
+  // In the animatePosition function, we can smooth out the movement
+  const animatePosition = (
+    sprite,
+    targetX,
+    targetY,
+    onComplete,
+    animationId
+  ) => {
+    let localAnimationFrameRef = null;
+    const currentSprite = sprites.find((s) => s.id === sprite.id);
+    if (!currentSprite) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const startX = currentSprite.x;
+    const startY = currentSprite.y;
     const startTime = performance.now();
     const duration = 500; // Animation duration in ms
-    
+
     const animate = (currentTime) => {
-      // Check if animation has been cancelled
       if (!activeAnimations.current[animationId]) {
         if (onComplete) onComplete();
         return;
@@ -317,106 +354,111 @@ export default function PreviewArea() {
 
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
-      // Calculate new position with easing
+
+      // Calculate new position smoothly
       const newX = startX + (targetX - startX) * progress;
       const newY = startY + (targetY - startY) * progress;
-      
-      // Update sprite position using Redux
-      dispatch(updateSpritePosition({
-        id: sprite.id,
-        x: newX,
-        y: newY
-      }));
-      
-      if (progress < 1) {
-        // Continue animation
-        animationFrameRef.current = requestAnimationFrame(animate);
-      } else {
-        // Animation complete - make sure we set the exact final coordinates
-        dispatch(updateSpritePosition({
+
+      // Dispatch position update once per animation frame
+      dispatch(
+        updateSpritePosition({
           id: sprite.id,
-          x: targetX,
-          y: targetY
-        }));
-        
+          x: newX,
+          y: newY,
+        })
+      );
+
+      if (progress < 1) {
+        // Continue animation using this specific animation's frame reference
+        localAnimationFrameRef = requestAnimationFrame(animate);
+      } else {
+        // Animation complete
+        dispatch(
+          updateSpritePosition({
+            id: sprite.id,
+            x: targetX,
+            y: targetY,
+          })
+        );
+
         if (onComplete) onComplete();
       }
     };
-    
-    // Start animation
-    animationFrameRef.current = requestAnimationFrame(animate);
+
+    localAnimationFrameRef = requestAnimationFrame(animate);
   };
 
-  // Check for sprite event triggers
   const checkEventTriggers = (spriteId, eventType) => {
     if (!isPlaying) return;
-    
-    const sprite = sprites.find(s => s.id === spriteId);
+
+    // Get a fresh reference to the sprite from Redux state
+    const sprite = sprites.find((s) => s.id === spriteId);
     if (!sprite) return;
-    
-    // Find all blocks that start with this event
-    const eventBlocks = sprite.blocks.filter(block => 
-      block.type === "event" && block.action === eventType
+
+    const eventBlocks = sprite.blocks.filter(
+      (block) => block.type === "event" && block.action === eventType
     );
-    
-    // Process each matching event block
-    eventBlocks.forEach(eventBlock => {
+
+    // Process each matching event block independently
+    // We use Promise.all to ensure all event blocks run concurrently
+    const blockPromises = eventBlocks.map((eventBlock) => {
       const blockIndex = sprite.blocks.indexOf(eventBlock);
       if (blockIndex !== -1) {
-        // Start processing blocks from the event trigger
-        processBlocks(sprite, sprite.blocks, blockIndex + 1);
+        const spriteCopy = { ...sprite };
+
+        return processBlocks(spriteCopy, sprite.blocks, blockIndex + 1);
       }
+      return Promise.resolve();
     });
+
+    // Run all event blocks concurrently
+    return Promise.all(blockPromises);
   };
 
   // Reset collision cooldown
   useEffect(() => {
     if (collisionCooldown) {
-      // Reset cooldown after a delay
       const timeout = setTimeout(() => {
         dispatch(setCooldown(false));
-      }, 3000); // 3 second cooldown
-      
+      }, 3000);
       return () => clearTimeout(timeout);
     }
   }, [collisionCooldown, dispatch]);
 
-  // Start animations when play button is pressed
   useEffect(() => {
     if (isPlaying) {
-      // Clear any active animations
       activeAnimations.current = {};
-      
-      // Reset bubbles when play is pressed
+
       setBubbles({});
-      
-      // Start animations for all sprites with "flagClick" events
-      sprites.forEach(sprite => {
-        checkEventTriggers(sprite.id, "flagClick");
+
+      const animationFrames = [];
+
+      const spriteAnimationPromises = sprites.map((sprite) => {
+        return new Promise((resolve) => {
+          // This helps prevent race conditions
+          setTimeout(() => {
+            checkEventTriggers(sprite.id, "flagClick");
+            resolve();
+          }, Math.random() * 25); // Small random delay between 0-50ms
+        });
       });
-      
-      // Set up collision detection interval
+
+      Promise.all(spriteAnimationPromises);
+
       const collisionCheckInterval = setInterval(() => {
         if (isPlaying && !collisionCooldown) {
           dispatch(checkCollisionsAndSwap());
         }
       }, 1000); // Check for collisions every second
-      
+
       return () => {
-        // Clean up on stop playing
         clearInterval(collisionCheckInterval);
-        
-        // Cancel any ongoing animations
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
-        
-        // Clear all active animations
+        animationFrames.forEach((frameId) => cancelAnimationFrame(frameId));
         activeAnimations.current = {};
-        
-        // Clear all bubbles
         setBubbles({});
       };
     }
@@ -425,9 +467,13 @@ export default function PreviewArea() {
   // Clean up animations when component unmounts
   useEffect(() => {
     return () => {
+      // Cancel all animation frames
       if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+        Object.values(animationFrameRef.current).forEach((frameId) => {
+          if (frameId) cancelAnimationFrame(frameId);
+        });
       }
+      animationFrameRef.current = {};
       activeAnimations.current = {};
     };
   }, []);
@@ -435,36 +481,22 @@ export default function PreviewArea() {
   // Handle sprite click events
   const handleSpriteClick = (spriteId) => {
     dispatch(setSelectedSpriteId(spriteId));
-    
-    // If playing, trigger sprite click event
+
     if (isPlaying) {
       checkEventTriggers(spriteId, "spriteClick");
     }
   };
 
-  // Render speech or thought bubble for a sprite
-  const renderBubble = (spriteId, x, y) => {
+  const renderBubble = (spriteId) => {
     const bubble = bubbles[spriteId];
     if (!bubble) return null;
-    
-    const bubbleStyle = {
-      position: 'absolute',
-      left: x + 60,
-      top: y - 60,
-      backgroundColor: 'white',
-      borderRadius: bubble.type === 'speech' ? '12px' : '12px',
-      padding: '8px 12px',
-      maxWidth: '150px',
-      boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-      zIndex: 10
-    };
-    
+
     return (
-      <div style={bubbleStyle} className="speech-bubble">
-        <p className="text-sm text-gray-800">{bubble.content}</p>
-        {bubble.type === 'speech' && (
-          <div className="absolute left-0 -bottom-2 w-4 h-4 bg-white transform rotate-45 -ml-1"></div>
-        )}
+      <div
+        className={`absolute -top-16 left-12 p-2 bg-white rounded-lg border ${
+          bubble.type === "thought" ? "rounded-full" : "speech-bubble"
+        }`}>
+        {bubble.content}
       </div>
     );
   };
@@ -480,19 +512,21 @@ export default function PreviewArea() {
         {sprites.map((sprite) => (
           <div
             key={sprite.id}
-            className={`absolute cursor-grab ${
-              selectedSpriteId === sprite.id ? "ring-2 ring-blue-500" : ""
-            }`}
+            className={`absolute ${
+              activeDragSprites[sprite.id] ? "cursor-grabbing" : "cursor-grab"
+            } ${selectedSpriteId === sprite.id ? "ring-2 ring-blue-500" : ""}`}
             onMouseDown={(e) => handleMouseDown(e, sprite.id)}
             onClick={() => handleSpriteClick(sprite.id)}
             style={{
               left: sprite.x,
               top: sprite.y,
               transform: `rotate(${rotations[sprite.id] || 0}deg)`,
-              transition: !isDragging.current ? 'transform 0.3s' : 'none'
+              zIndex: activeDragSprites[sprite.id] ? 10 : 1,
             }}>
+            {/* Render bubble if exists */}
+            {renderBubble(sprite.id)}
+
             <CatSprite spriteName={sprite.name} />
-            {renderBubble(sprite.id, 0, 0)}
           </div>
         ))}
       </div>
@@ -529,7 +563,7 @@ export default function PreviewArea() {
               )}
 
               <div className="p-2">
-              <CatSprite spriteName={sprite.name} />
+                <CatSprite spriteName={sprite.name} />
               </div>
 
               <div className="px-4 pb-2">
