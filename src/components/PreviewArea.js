@@ -501,12 +501,12 @@ export default function PreviewArea() {
       <div className="h-64 bg-white p-3 border-t border-gray-300 flex flex-col">
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-semibold text-gray-700">Sprites</h3>
-          {/* <button
+          <button
             disabled={true}
             className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
             onClick={() => dispatch(addSprite())}>
             + Add Sprite
-          </button> */}
+          </button>
         </div>
 
         <div className="flex gap-2 items-start overflow-x-auto pb-2">

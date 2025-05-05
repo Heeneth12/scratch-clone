@@ -4,7 +4,7 @@ export default function Sprite({ spriteName }) {
   console.log(spriteName)
   return (
     <>
-      {spriteName === "cat" && (
+      {(spriteName === "cat" || (spriteName !== "cat" && spriteName !== "ball")) && (
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="95.17898101806641"
@@ -185,11 +185,11 @@ export default function Sprite({ spriteName }) {
       )}
 
       {spriteName === "ball" && (
-        <svg 
+        <svg
 
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 100 100"
-           width="95.17898101806641"
+          width="95.17898101806641"
           height="100.04156036376953"
           version="1.1">
           <g id="basketball">
