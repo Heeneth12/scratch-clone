@@ -1,3 +1,4 @@
+// webpack.common.js
 const path = require("path");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
@@ -5,11 +6,11 @@ module.exports = {
   entry: {
     app: "./src/index.js",
   },
- output: {
-  path: path.resolve(__dirname, "build"),
-  filename: "[name].[contenthash].js",
-  publicPath: "/",
-},
+  output: {
+    path: path.resolve(__dirname, "build"),
+    filename: "[name].[contenthash].js",
+    publicPath: "/",
+  },
   module: {
     rules: [
       {
@@ -21,14 +22,7 @@ module.exports = {
             loader: "postcss-loader",
             options: {
               postcssOptions: {
-                plugins: [
-                  [
-                    "postcss-preset-env",
-                    {
-                      // Options
-                    },
-                  ],
-                ],
+                plugins: [["postcss-preset-env"]],
               },
             },
           },
@@ -46,5 +40,12 @@ module.exports = {
       },
     ],
   },
-  plugins: [new MiniCssExtractPlugin()],
+  plugins: [
+    new MiniCssExtractPlugin(),
+    new HtmlWebpackPlugin({
+      template: "./public/index.html",
+      minify: true,
+    }),
+  ],
 };
+
